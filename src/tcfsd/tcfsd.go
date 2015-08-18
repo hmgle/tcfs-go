@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"regexp"
 	"syscall"
 )
@@ -46,7 +49,30 @@ func handleConn(conn net.Conn) {
 				conn.Write(buf)
 				continue
 			}
+			buf = make([]byte, 4+11*4)
+			binary.BigEndian.PutUint32(buf[0:4], 11*4)
+			binary.BigEndian.PutUint32(buf[4:8], uint32(stat.Dev))
+			binary.BigEndian.PutUint32(buf[8:12], uint32(stat.Ino))
+			binary.BigEndian.PutUint32(buf[12:16], stat.Mode)
+			binary.BigEndian.PutUint32(buf[16:20], uint32(stat.Nlink))
+			binary.BigEndian.PutUint32(buf[20:24], stat.Uid)
+			binary.BigEndian.PutUint32(buf[24:28], stat.Gid)
+			binary.BigEndian.PutUint32(buf[28:32], uint32(stat.Size))
+			binary.BigEndian.PutUint32(buf[32:36], uint32(stat.Atim.Sec))
+			binary.BigEndian.PutUint32(buf[36:40], uint32(stat.Mtim.Sec))
+			binary.BigEndian.PutUint32(buf[40:44], uint32(stat.Ctim.Sec))
+			conn.Write(buf)
+
 		} else if matched := reReaddir.FindStringSubmatch(string(buf)); len(matched) > 1 {
+			fixpath := rootdir + matched[1]
+			fileList := []string{}
+			err = filepath.Walk(fixpath, func(path string, f os.FileInfo, err error) error {
+				fileList = append(fileList, path)
+				return nil
+			})
+			for _, file := range fileList {
+				fmt.Println(file)
+			}
 		} else if matched := reOpen.FindStringSubmatch(string(buf)); len(matched) > 1 {
 		} else if matched := reRead.FindStringSubmatch(string(buf)); len(matched) > 1 {
 		} else if matched := reWrite.FindStringSubmatch(string(buf)); len(matched) > 1 {
