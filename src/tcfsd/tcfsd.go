@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -63,14 +62,15 @@ func handleConn(conn net.Conn) {
 
 		} else if matched := reReaddir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			fixpath := rootdir + matched[1]
-			fileList := []string{}
+			fileList := []byte{}
 			err = filepath.Walk(fixpath, func(path string, f os.FileInfo, err error) error {
-				fileList = append(fileList, path)
+				fileList = append(fileList, path...)
+				fileList = append(fileList, 0)
 				return nil
 			})
-			for _, file := range fileList {
-				fmt.Println(file)
-			}
+			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList)))
+			copy(buf[4:], fileList)
+			conn.Write(buf[:len(fileList)+4])
 		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reRead.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
