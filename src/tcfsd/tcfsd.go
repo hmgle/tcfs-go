@@ -15,6 +15,7 @@ import (
 func handleConn(conn net.Conn) {
 	var err error
 	buf := make([]byte, 4096*1024) // 4MB
+	openedFile := map[uintptr]*os.File{}
 	reGetattr := regexp.MustCompile("^getattr(.*)")
 	reReaddir := regexp.MustCompile("^readdir(.*)")
 	reOpen := regexp.MustCompile("^open(.*)")
@@ -76,6 +77,22 @@ func handleConn(conn net.Conn) {
 			copy(buf[8:], fileList)
 			conn.Write(buf[:len(fileList)+8])
 		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			flag := binary.BigEndian.Uint64([]byte(matched[1])[0:4])
+			fixpath := rootdir + matched[1][4:]
+			f, err := os.OpenFile(fixpath, int(flag), 0x666)
+			if err != nil {
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				var ret int32 = -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			fd := f.Fd()
+			openedFile[fd] = f
+			binary.BigEndian.PutUint32(buf[0:4], 8)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
+			conn.Write(buf[:12])
 		} else if matched := reRead.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
