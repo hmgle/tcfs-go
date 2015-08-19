@@ -71,7 +71,7 @@ func handleConn(conn net.Conn) {
 				return nil
 			})
 			fmt.Println(fileList)
-			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList)))
+			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList))+4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			copy(buf[8:], fileList)
 			conn.Write(buf[:len(fileList)+8])
