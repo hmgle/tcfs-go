@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -71,7 +70,6 @@ func handleConn(conn net.Conn) {
 				fileList = append(fileList, 0)
 				return nil
 			})
-			fmt.Println(fileList)
 			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList))+4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			copy(buf[8:], fileList)
