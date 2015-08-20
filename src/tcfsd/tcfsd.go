@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"io"
 	"log"
 	"net"
@@ -117,6 +118,15 @@ func handleConn(conn net.Conn) {
 				conn.Write(buf[:8+readed])
 			}
 		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
+			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
+			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
+			wbuf := []byte(matched[1])[12 : 12+size]
+			f := openedFile[uintptr(findex)]
+			writed, _ := f.WriteAt(wbuf, int64(offset))
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], uint32(writed))
+			conn.Write(buf[:8])
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reRelease.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
@@ -142,8 +152,13 @@ func handleConn(conn net.Conn) {
 	}
 }
 
+var (
+	port = flag.String("port", ":9876", "port to listen to")
+)
+
 func main() {
-	l, e := net.Listen("tcp", ":9876")
+	flag.Parse()
+	l, e := net.Listen("tcp", *port)
 	if e != nil {
 		log.Fatal(e)
 		return
