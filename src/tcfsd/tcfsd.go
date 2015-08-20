@@ -77,7 +77,7 @@ func handleConn(conn net.Conn) {
 			copy(buf[8:], fileList)
 			conn.Write(buf[:len(fileList)+8])
 		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			flag := binary.BigEndian.Uint64([]byte(matched[1])[0:4])
+			flag := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
 			fixpath := rootdir + matched[1][4:]
 			f, err := os.OpenFile(fixpath, int(flag), 0x666)
 			if err != nil {
@@ -94,6 +94,30 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
 			conn.Write(buf[:12])
 		} else if matched := reRead.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
+			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
+			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
+			// fixpath := rootdir + matched[1][12:]
+			f := openedFile[uintptr(findex)]
+			readbuf := make([]byte, size)
+			readed, err := f.ReadAt(readbuf, int64(offset))
+			if err != nil || err != io.EOF {
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				var ret int32 = -9
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			if readed == 0 {
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				binary.BigEndian.PutUint32(buf[4:8], 0)
+				conn.Write(buf[:8])
+			} else if readed > 0 {
+				binary.BigEndian.PutUint32(buf[0:4], 4+uint32(readed))
+				binary.BigEndian.PutUint32(buf[4:8], uint32(readed))
+				copy(buf[8:], readbuf)
+				conn.Write(buf[:8+readed])
+			}
 		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reRelease.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
