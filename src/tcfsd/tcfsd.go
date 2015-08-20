@@ -128,6 +128,20 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], uint32(writed))
 			conn.Write(buf[:8])
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			newSize := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
+			fixpath := rootdir + matched[1][4:]
+			// func Truncate(name string, size int64) error
+			err := os.Truncate(fixpath, int64(newSize))
+			if err != nil {
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13 // EACCES
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else if matched := reRelease.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
 			f := openedFile[uintptr(findex)]
