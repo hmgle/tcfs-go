@@ -101,7 +101,7 @@ func handleConn(conn net.Conn) {
 			f := openedFile[uintptr(findex)]
 			readbuf := make([]byte, size)
 			readed, err := f.ReadAt(readbuf, int64(offset))
-			if err != nil || err != io.EOF {
+			if err != nil && err != io.EOF {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -9
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
