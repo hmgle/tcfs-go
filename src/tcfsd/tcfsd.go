@@ -121,6 +121,19 @@ func handleConn(conn net.Conn) {
 		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reRelease.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
+			f := openedFile[uintptr(findex)]
+			err := f.Close()
+			if err != nil {
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -9
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else if matched := reMkdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reRmdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 		} else if matched := reUnlink.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
