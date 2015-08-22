@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -78,7 +79,7 @@ func handleConn(conn net.Conn) {
 		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			flag := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
 			fixpath := rootdir + matched[1][4:]
-			f, err := os.OpenFile(fixpath, int(flag), 0x666)
+			f, err := os.OpenFile(fixpath, int(flag), 0666)
 			if err != nil {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -13
@@ -130,7 +131,6 @@ func handleConn(conn net.Conn) {
 		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			newSize := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
 			fixpath := rootdir + matched[1][4:]
-			// func Truncate(name string, size int64) error
 			err := os.Truncate(fixpath, int64(newSize))
 			if err != nil {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
@@ -147,6 +147,7 @@ func handleConn(conn net.Conn) {
 			f := openedFile[uintptr(findex)]
 			err := f.Close()
 			if err != nil {
+				fmt.Println(err)
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -9
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
