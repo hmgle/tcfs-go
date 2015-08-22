@@ -29,6 +29,7 @@ func handleConn(conn net.Conn) {
 	reUnlink := regexp.MustCompile("^unlink(.*)")
 	reCreate := regexp.MustCompile("^create(.*)")
 	reUtime := regexp.MustCompile("^utime(.*)")
+	reChmod := regexp.MustCompile("^chmod(.*)")
 	rootdir := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
 	for {
 		_, err = io.ReadFull(conn, buf[:4])
@@ -79,7 +80,7 @@ func handleConn(conn net.Conn) {
 		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
 			flag := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
 			fixpath := rootdir + matched[1][4:]
-			f, err := os.OpenFile(fixpath, int(flag), 0666)
+			f, err := os.OpenFile(fixpath, int(flag), os.ModePerm)
 			if err != nil {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -13
@@ -122,6 +123,7 @@ func handleConn(conn net.Conn) {
 			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
 			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
 			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
+			fmt.Println(size)
 			wbuf := []byte(matched[1])[12 : 12+size]
 			f := openedFile[uintptr(findex)]
 			writed, _ := f.WriteAt(wbuf, int64(offset))
@@ -158,13 +160,89 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			conn.Write(buf[:8])
 		} else if matched := reMkdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
+			fixpath := rootdir + matched[1][4:]
+			if err := os.MkdirAll(fixpath, os.FileMode(mode)); err != nil {
+				log.Fatal("Can't create dir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else if matched := reRmdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			fixpath := rootdir + matched[1]
+			if err := os.Remove(fixpath); err != nil {
+				log.Fatal("Can't rmdir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else if matched := reUnlink.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			// FIXME
+			fixpath := rootdir + matched[1]
+			if err := os.Remove(fixpath); err != nil {
+				log.Fatal("Can't rmdir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else if matched := reCreate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			// mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
+			fixpath := rootdir + matched[1][4:]
+			f, err := os.Create(fixpath)
+			if err != nil {
+				log.Fatal("Can't create", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			fd := f.Fd()
+			openedFile[fd] = f
+			binary.BigEndian.PutUint32(buf[0:4], 8)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
+			conn.Write(buf[:12])
 		} else if matched := reUtime.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			// TODO
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
+		} else if matched := reChmod.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+			mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
+			fixpath := rootdir + matched[1][4:]
+			err := os.Chmod(fixpath, os.FileMode(mode))
+			if err != nil {
+				log.Fatal("Can't chmod", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		} else {
+			fmt.Println("error, badmsg")
 		}
 	}
+	fmt.Println("xxxxxxxxxxx, close")
 }
 
 var (
