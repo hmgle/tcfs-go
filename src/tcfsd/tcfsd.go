@@ -124,6 +124,7 @@ func handleConn(conn net.Conn) {
 			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
 			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
 			fmt.Println(size)
+			fmt.Println(len(matched[1]))
 			wbuf := []byte(matched[1])[12 : 12+size]
 			f := openedFile[uintptr(findex)]
 			writed, _ := f.WriteAt(wbuf, int64(offset))
@@ -219,7 +220,18 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
 			conn.Write(buf[:12])
 		} else if matched := reUtime.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			// TODO
+			atime := binary.BigEndian.Uint64([]byte(matched[1])[0:8])
+			mtime := binary.BigEndian.Uint64([]byte(matched[1])[8:16])
+			fixpath := rootdir + matched[1][16:]
+			err := syscall.Utime(fixpath, &syscall.Utimbuf{int64(atime), int64(mtime)})
+			if err != nil {
+				log.Fatal("Can't create", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			conn.Write(buf[:8])
