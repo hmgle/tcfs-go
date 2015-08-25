@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"syscall"
 )
 
@@ -39,19 +38,6 @@ func handleConn(conn net.Conn) {
 	var err error
 	buf := make([]byte, 4096*1024) // 4MB
 	openedFile := map[uintptr]*os.File{}
-	reGetattr := regexp.MustCompile("^getattr(.*)")
-	reReaddir := regexp.MustCompile("^readdir(.*)")
-	reOpen := regexp.MustCompile("^open(.*)")
-	reRead := regexp.MustCompile("^read(.*)")
-	reWrite := regexp.MustCompile("^write(.*)")
-	reTruncate := regexp.MustCompile("^truncate(.*)")
-	reRelease := regexp.MustCompile("^release(.*)")
-	reMkdir := regexp.MustCompile("^mkdir(.*)")
-	reRmdir := regexp.MustCompile("^rmdir(.*)")
-	reUnlink := regexp.MustCompile("^unlink(.*)")
-	reCreate := regexp.MustCompile("^create(.*)")
-	reUtime := regexp.MustCompile("^utime(.*)")
-	reChmod := regexp.MustCompile("^chmod(.*)")
 	rootdir := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
 	for {
 		_, err = io.ReadFull(conn, buf[:4])
@@ -95,11 +81,63 @@ func handleConn(conn net.Conn) {
 		case GETDIR:
 		case MKNOD:
 		case MKDIR:
+			mode := binary.BigEndian.Uint32(msgbuf[0:4])
+			fixpath := rootdir + string(msgbuf[4:])
+			if err := os.MkdirAll(fixpath, os.FileMode(mode)); err != nil {
+				log.Print("Can't create dir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		case SYMLINK:
 		case UNLINK:
+			// FIXME
+			fixpath := rootdir + string(msgbuf[1])
+			if err := os.Remove(fixpath); err != nil {
+				log.Print("Can't rmdir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		case RMDIR:
+			fixpath := rootdir + string(msgbuf[1])
+			if err := os.Remove(fixpath); err != nil {
+				log.Print("Can't rmdir", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		case RENAME:
 		case CHMOD:
+			mode := binary.BigEndian.Uint32(msgbuf[0:4])
+			fixpath := rootdir + string(msgbuf[4:])
+			err := os.Chmod(fixpath, os.FileMode(mode))
+			if err != nil {
+				log.Print("Can't chmod", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		case CHOWN:
 		case TRUNCATE:
 			newSize := binary.BigEndian.Uint32(msgbuf[0:4])
@@ -116,6 +154,21 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			conn.Write(buf[:8])
 		case UTIME:
+			atime := binary.BigEndian.Uint64(msgbuf[0:8])
+			mtime := binary.BigEndian.Uint64(msgbuf[8:16])
+			fixpath := rootdir + string(msgbuf[16:])
+			err := syscall.Utime(fixpath, &syscall.Utimbuf{int64(atime), int64(mtime)})
+			if err != nil {
+				log.Print("Can't create", err)
+				binary.BigEndian.PutUint32(buf[0:4], 4)
+				ret := -13
+				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
+				conn.Write(buf[:8])
+				continue
+			}
+			binary.BigEndian.PutUint32(buf[0:4], 4)
+			binary.BigEndian.PutUint32(buf[4:8], 0)
+			conn.Write(buf[:8])
 		case OPEN:
 			flag := binary.BigEndian.Uint32(msgbuf[0:4])
 			fixpath := rootdir + string(msgbuf[4:])
@@ -183,119 +236,7 @@ func handleConn(conn net.Conn) {
 			copy(buf[8:], fileList)
 			conn.Write(buf[:len(fileList)+8])
 		case RELEASE:
-		case CREATE:
-		default:
-			log.Print("bad tcfsOp: ", tcfsOp)
-		}
-
-		if matched := reGetattr.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			fixpath := rootdir + matched[1]
-			var stat syscall.Stat_t
-			err = syscall.Lstat(fixpath, &stat)
-			if err != nil {
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				var ret int32 = -2
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 11*4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			binary.BigEndian.PutUint32(buf[8:12], uint32(stat.Dev))
-			binary.BigEndian.PutUint32(buf[12:16], uint32(stat.Ino))
-			binary.BigEndian.PutUint32(buf[16:20], stat.Mode)
-			binary.BigEndian.PutUint32(buf[20:24], uint32(stat.Nlink))
-			binary.BigEndian.PutUint32(buf[24:28], stat.Uid)
-			binary.BigEndian.PutUint32(buf[28:32], stat.Gid)
-			binary.BigEndian.PutUint32(buf[32:36], uint32(stat.Size))
-			binary.BigEndian.PutUint32(buf[36:40], uint32(stat.Atim.Sec))
-			binary.BigEndian.PutUint32(buf[40:44], uint32(stat.Mtim.Sec))
-			binary.BigEndian.PutUint32(buf[44:48], uint32(stat.Ctim.Sec))
-			conn.Write(buf[:48])
-
-		} else if matched := reReaddir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			fixpath := rootdir + matched[1]
-			fileList := []byte{}
-			err = filepath.Walk(fixpath, func(path string, f os.FileInfo, err error) error {
-				rp, _ := filepath.Rel(rootdir, path)
-				fileList = append(fileList, rp...)
-				fileList = append(fileList, 0)
-				return nil
-			})
-			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList))+4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			copy(buf[8:], fileList)
-			conn.Write(buf[:len(fileList)+8])
-		} else if matched := reOpen.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			flag := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
-			fixpath := rootdir + matched[1][4:]
-			f, err := os.OpenFile(fixpath, int(flag), os.ModePerm)
-			if err != nil {
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				var ret int32 = -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			fd := f.Fd()
-			openedFile[fd] = f
-			binary.BigEndian.PutUint32(buf[0:4], 8)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
-			conn.Write(buf[:12])
-		} else if matched := reRead.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
-			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
-			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
-			// fixpath := rootdir + matched[1][12:]
-			f := openedFile[uintptr(findex)]
-			readbuf := make([]byte, size)
-			readed, err := f.ReadAt(readbuf, int64(offset))
-			if err != nil && err != io.EOF {
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				var ret int32 = -9
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			if readed == 0 {
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				binary.BigEndian.PutUint32(buf[4:8], 0)
-				conn.Write(buf[:8])
-			} else if readed > 0 {
-				binary.BigEndian.PutUint32(buf[0:4], 4+uint32(readed))
-				binary.BigEndian.PutUint32(buf[4:8], uint32(readed))
-				copy(buf[8:], readbuf)
-				conn.Write(buf[:8+readed])
-			}
-		} else if matched := reWrite.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
-			offset := binary.BigEndian.Uint32([]byte(matched[1])[4:8])
-			size := binary.BigEndian.Uint32([]byte(matched[1])[8:12])
-			fmt.Println(size)
-			fmt.Println(len(matched[1]))
-			wbuf := []byte(matched[1])[12 : 12+size]
-			f := openedFile[uintptr(findex)]
-			writed, _ := f.WriteAt(wbuf, int64(offset))
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], uint32(writed))
-			conn.Write(buf[:8])
-		} else if matched := reTruncate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			newSize := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
-			fixpath := rootdir + matched[1][4:]
-			err := os.Truncate(fixpath, int64(newSize))
-			if err != nil {
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13 // EACCES
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else if matched := reRelease.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			findex := binary.BigEndian.Uint32([]byte(matched[1])[:4])
+			findex := binary.BigEndian.Uint32(msgbuf[:4])
 			f := openedFile[uintptr(findex)]
 			err := f.Close()
 			if err != nil {
@@ -309,50 +250,9 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			conn.Write(buf[:8])
-		} else if matched := reMkdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
-			fixpath := rootdir + matched[1][4:]
-			if err := os.MkdirAll(fixpath, os.FileMode(mode)); err != nil {
-				log.Print("Can't create dir", err)
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else if matched := reRmdir.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			fixpath := rootdir + matched[1]
-			if err := os.Remove(fixpath); err != nil {
-				log.Print("Can't rmdir", err)
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else if matched := reUnlink.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			// FIXME
-			fixpath := rootdir + matched[1]
-			if err := os.Remove(fixpath); err != nil {
-				log.Print("Can't rmdir", err)
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else if matched := reCreate.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
+		case CREATE:
 			// mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
-			fixpath := rootdir + matched[1][4:]
+			fixpath := rootdir + string(msgbuf[4:])
 			f, err := os.Create(fixpath)
 			if err != nil {
 				log.Print("Can't create", err)
@@ -368,39 +268,8 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
 			conn.Write(buf[:12])
-		} else if matched := reUtime.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			atime := binary.BigEndian.Uint64([]byte(matched[1])[0:8])
-			mtime := binary.BigEndian.Uint64([]byte(matched[1])[8:16])
-			fixpath := rootdir + matched[1][16:]
-			err := syscall.Utime(fixpath, &syscall.Utimbuf{int64(atime), int64(mtime)})
-			if err != nil {
-				log.Print("Can't create", err)
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else if matched := reChmod.FindStringSubmatch(string(buf[:msglen])); len(matched) > 1 {
-			mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
-			fixpath := rootdir + matched[1][4:]
-			err := os.Chmod(fixpath, os.FileMode(mode))
-			if err != nil {
-				log.Print("Can't chmod", err)
-				binary.BigEndian.PutUint32(buf[0:4], 4)
-				ret := -13
-				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
-				continue
-			}
-			binary.BigEndian.PutUint32(buf[0:4], 4)
-			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
-		} else {
-			fmt.Println("error, badmsg")
+		default:
+			log.Print("bad tcfsOp: ", tcfsOp)
 		}
 	}
 	fmt.Println("xxxxxxxxxxx, close")
