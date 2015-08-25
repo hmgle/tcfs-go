@@ -35,6 +35,7 @@ const (
 )
 
 func handleConn(conn net.Conn) {
+	defer conn.Close()
 	var err error
 	buf := make([]byte, 4096*1024) // 4MB
 	openedFile := map[uintptr]*os.File{}
