@@ -39,7 +39,7 @@ func handleConn(conn net.Conn) {
 	var err error
 	buf := make([]byte, 4096*1024) // 4MB
 	openedFile := map[uintptr]*os.File{}
-	rootdir := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
+	rootdir := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir/"
 	for {
 		_, err = io.ReadFull(conn, buf[:4])
 		if err != nil {
@@ -98,7 +98,7 @@ func handleConn(conn net.Conn) {
 		case SYMLINK:
 		case UNLINK:
 			// FIXME
-			fixpath := rootdir + string(msgbuf[1])
+			fixpath := rootdir + string(msgbuf)
 			if err := os.Remove(fixpath); err != nil {
 				log.Print("Can't rmdir", err)
 				binary.BigEndian.PutUint32(buf[0:4], 4)
@@ -111,7 +111,7 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			conn.Write(buf[:8])
 		case RMDIR:
-			fixpath := rootdir + string(msgbuf[1])
+			fixpath := rootdir + string(msgbuf)
 			if err := os.Remove(fixpath); err != nil {
 				log.Print("Can't rmdir", err)
 				binary.BigEndian.PutUint32(buf[0:4], 4)
