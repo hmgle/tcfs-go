@@ -1,4 +1,4 @@
-GOPATH := $(PWD)
+export GOPATH := $(PWD)
 
 all:: bin/tcfsd
 
