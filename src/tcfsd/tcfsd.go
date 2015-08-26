@@ -12,6 +12,13 @@ import (
 	"syscall"
 )
 
+type TcfsConn struct {
+	RootDir    string
+	Conn       net.Conn
+	Buf        []byte
+	OpenedFile map[uintptr]*os.File
+}
+
 const (
 	GETATTR  = 0x01
 	READLINK = 0x02
@@ -34,12 +41,13 @@ const (
 	CREATE   = 0x13
 )
 
-func handleConn(conn net.Conn) {
-	defer conn.Close()
+func handleConn(tConn *TcfsConn) {
+	defer tConn.Conn.Close()
 	var err error
-	buf := make([]byte, 4096*1024) // 4MB
-	openedFile := map[uintptr]*os.File{}
-	rootdir := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
+	buf := tConn.Buf
+	openedFile := tConn.OpenedFile
+	rootdir := tConn.RootDir
+	conn := tConn.Conn
 	for {
 		_, err = io.ReadFull(conn, buf[:4])
 		if err != nil {
@@ -294,12 +302,16 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
+	rootpath := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
 	for {
 		conn, e := l.Accept()
 		if e != nil {
 			log.Print(e)
 			continue
 		}
-		go handleConn(conn)
+		newConn := TcfsConn{rootpath, conn,
+			make([]byte, 4096*1024),
+			map[uintptr]*os.File{}}
+		go handleConn(&newConn)
 	}
 }
