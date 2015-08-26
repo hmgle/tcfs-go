@@ -293,7 +293,8 @@ func handleConn(tConn *TcfsConn) {
 }
 
 var (
-	port = flag.String("port", ":9876", "port to listen to")
+	port     = flag.String("port", ":9876", "port to listen to")
+	rootpath = flag.String("dir", "rootdir", "path to share")
 )
 
 func main() {
@@ -302,14 +303,13 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
-	rootpath := "/home/gle/code_repo/cloud_lib/tcfs-go/rootdir"
 	for {
 		conn, e := l.Accept()
 		if e != nil {
 			log.Print(e)
 			continue
 		}
-		newConn := TcfsConn{rootpath, conn,
+		newConn := TcfsConn{*rootpath, conn,
 			make([]byte, 4096*1024),
 			map[uintptr]*os.File{}}
 		go handleConn(&newConn)
