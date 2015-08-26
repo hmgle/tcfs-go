@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"syscall"
 )
 
@@ -99,7 +99,7 @@ func handleConn(conn net.Conn) {
 		case UNLINK:
 			// FIXME
 			fixpath := rootdir + string(msgbuf)
-			fmt.Println(fixpath)
+			// fmt.Println(fixpath)
 			if err := os.Remove(fixpath); err != nil {
 				log.Print("Can't rmdir", err)
 				binary.BigEndian.PutUint32(buf[0:4], 4)
@@ -113,8 +113,8 @@ func handleConn(conn net.Conn) {
 			conn.Write(buf[:8])
 		case RMDIR:
 			fixpath := rootdir + string(msgbuf)
-			fmt.Println(string(msgbuf))
-			fmt.Println(fixpath)
+			// fmt.Println(string(msgbuf))
+			// fmt.Println(fixpath)
 			if err := os.Remove(fixpath); err != nil {
 				log.Print("Can't rmdir", err)
 				binary.BigEndian.PutUint32(buf[0:4], 4)
@@ -218,8 +218,8 @@ func handleConn(conn net.Conn) {
 			findex := binary.BigEndian.Uint32(msgbuf[:4])
 			offset := binary.BigEndian.Uint32(msgbuf[4:8])
 			size := binary.BigEndian.Uint32(msgbuf[8:12])
-			fmt.Println(size)
-			fmt.Println(len(msgbuf))
+			// fmt.Println(size)
+			// fmt.Println(len(msgbuf))
 			wbuf := msgbuf[12 : 12+size]
 			f := openedFile[uintptr(findex)]
 			writed, _ := f.WriteAt(wbuf, int64(offset))
@@ -227,15 +227,19 @@ func handleConn(conn net.Conn) {
 			binary.BigEndian.PutUint32(buf[4:8], uint32(writed))
 			conn.Write(buf[:8])
 		case READDIR:
+
 			fixpath := rootdir + string(msgbuf)
 			fileList := []byte{}
-			err = filepath.Walk(fixpath, func(path string, f os.FileInfo, err error) error {
-				// rp, _ := filepath.Rel(rootdir, path)
-				rp, _ := filepath.Rel(fixpath, path)
-				fileList = append(fileList, rp...)
+			dirInfo, err := ioutil.ReadDir(fixpath)
+			if err != nil {
+				log.Print("Can't ReadDir", err)
+				continue
+			}
+			for _, f := range dirInfo {
+				fileList = append(fileList, []byte(f.Name())...)
 				fileList = append(fileList, 0)
-				return nil
-			})
+			}
+
 			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList))+4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			copy(buf[8:], fileList)
@@ -277,7 +281,7 @@ func handleConn(conn net.Conn) {
 			log.Print("bad tcfsOp: ", tcfsOp)
 		}
 	}
-	fmt.Println("xxxxxxxxxxx, close")
+	// fmt.Println("xxxxxxxxxxx, close")
 }
 
 var (
