@@ -289,7 +289,6 @@ func handleConn(tConn *TcfsConn) {
 			log.Print("bad tcfsOp: ", tcfsOp)
 		}
 	}
-	// fmt.Println("xxxxxxxxxxx, close")
 }
 
 var (
@@ -309,9 +308,12 @@ func main() {
 			log.Print(e)
 			continue
 		}
-		newConn := TcfsConn{*rootpath, conn,
+		newConn := TcfsConn{
+			*rootpath,
+			conn,
 			make([]byte, 4096*1024),
-			map[uintptr]*os.File{}}
+			map[uintptr]*os.File{},
+		}
 		go handleConn(&newConn)
 	}
 }
