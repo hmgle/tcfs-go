@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"syscall"
+	"tcfs"
 )
 
 type TcfsConn struct {
@@ -17,6 +18,33 @@ type TcfsConn struct {
 	Conn       net.Conn
 	Buf        []byte
 	OpenedFile map[uintptr]*os.File
+
+	cipher *tcfs.Cipher
+}
+
+func (c *TcfsConn) Read(b []byte) (int, error) {
+	if c.cipher == nil {
+		return c.Conn.Read(b)
+	}
+	cipherData := make([]byte, len(b))
+	n, err := c.Conn.Read(cipherData)
+	if n > 0 {
+		c.cipher.Decrypt(b[0:n], cipherData[0:n])
+	}
+	return n, err
+}
+
+func (c *TcfsConn) Write(b []byte) (int, error) {
+	if c.cipher == nil {
+		return c.Conn.Write(b)
+	}
+	cipherData := make([]byte, len(b))
+	c.cipher.Encrypt(cipherData, b)
+	return c.Conn.Write(cipherData)
+}
+
+func (c *TcfsConn) Close() {
+	c.Conn.Close()
 }
 
 const (
@@ -47,9 +75,8 @@ func handleConn(tConn *TcfsConn) {
 	buf := tConn.Buf
 	openedFile := tConn.OpenedFile
 	rootdir := tConn.RootDir
-	conn := tConn.Conn
 	for {
-		_, err = io.ReadFull(conn, buf[:4])
+		_, err = io.ReadFull(tConn, buf[:4])
 		if err != nil {
 			break
 		}
@@ -57,7 +84,7 @@ func handleConn(tConn *TcfsConn) {
 		if msglen < 4 || msglen > (4096*1024) {
 			log.Fatal("msglen = ", msglen)
 		}
-		_, err = io.ReadFull(conn, buf[:msglen])
+		_, err = io.ReadFull(tConn, buf[:msglen])
 
 		tcfsOp := binary.BigEndian.Uint32(buf[0:4])
 		msgbuf := buf[4:msglen]
@@ -70,7 +97,7 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -2
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 11*4)
@@ -85,7 +112,7 @@ func handleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[36:40], uint32(stat.Atim.Sec))
 			binary.BigEndian.PutUint32(buf[40:44], uint32(stat.Mtim.Sec))
 			binary.BigEndian.PutUint32(buf[44:48], uint32(stat.Ctim.Sec))
-			conn.Write(buf[:48])
+			tConn.Write(buf[:48])
 		case READLINK:
 		case GETDIR:
 		case MKNOD:
@@ -97,12 +124,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case SYMLINK:
 		case UNLINK:
 			// FIXME
@@ -113,12 +140,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case RMDIR:
 			fixpath := rootdir + string(msgbuf)
 			// fmt.Println(string(msgbuf))
@@ -128,12 +155,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case RENAME:
 		case CHMOD:
 			mode := binary.BigEndian.Uint32(msgbuf[0:4])
@@ -144,12 +171,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case CHOWN:
 		case TRUNCATE:
 			newSize := binary.BigEndian.Uint32(msgbuf[0:4])
@@ -159,12 +186,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13 // EACCES
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case UTIME:
 			atime := binary.BigEndian.Uint64(msgbuf[0:8])
 			mtime := binary.BigEndian.Uint64(msgbuf[8:16])
@@ -175,12 +202,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case OPEN:
 			flag := binary.BigEndian.Uint32(msgbuf[0:4])
 			fixpath := rootdir + string(msgbuf[4:])
@@ -189,7 +216,7 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			fd := f.Fd()
@@ -197,7 +224,7 @@ func handleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[0:4], 8)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
-			conn.Write(buf[:12])
+			tConn.Write(buf[:12])
 		case READ:
 			findex := binary.BigEndian.Uint32(msgbuf[:4])
 			offset := binary.BigEndian.Uint32(msgbuf[4:8])
@@ -209,18 +236,18 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -9
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			if readed == 0 {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				binary.BigEndian.PutUint32(buf[4:8], 0)
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 			} else if readed > 0 {
 				binary.BigEndian.PutUint32(buf[0:4], 4+uint32(readed))
 				binary.BigEndian.PutUint32(buf[4:8], uint32(readed))
 				copy(buf[8:], readbuf)
-				conn.Write(buf[:8+readed])
+				tConn.Write(buf[:8+readed])
 			}
 		case WRITE:
 			findex := binary.BigEndian.Uint32(msgbuf[:4])
@@ -233,7 +260,7 @@ func handleConn(tConn *TcfsConn) {
 			writed, _ := f.WriteAt(wbuf, int64(offset))
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], uint32(writed))
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case READDIR:
 
 			fixpath := rootdir + string(msgbuf)
@@ -251,7 +278,7 @@ func handleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[:4], uint32(len(fileList))+4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			copy(buf[8:], fileList)
-			conn.Write(buf[:len(fileList)+8])
+			tConn.Write(buf[:len(fileList)+8])
 		case RELEASE:
 			findex := binary.BigEndian.Uint32(msgbuf[:4])
 			f := openedFile[uintptr(findex)]
@@ -261,12 +288,12 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -9
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			binary.BigEndian.PutUint32(buf[0:4], 4)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
-			conn.Write(buf[:8])
+			tConn.Write(buf[:8])
 		case CREATE:
 			// mode := binary.BigEndian.Uint32([]byte(matched[1])[0:4])
 			fixpath := rootdir + string(msgbuf[4:])
@@ -276,7 +303,7 @@ func handleConn(tConn *TcfsConn) {
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				ret := -13
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
-				conn.Write(buf[:8])
+				tConn.Write(buf[:8])
 				continue
 			}
 			fd := f.Fd()
@@ -284,7 +311,7 @@ func handleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[0:4], 8)
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			binary.BigEndian.PutUint32(buf[8:12], uint32(fd))
-			conn.Write(buf[:12])
+			tConn.Write(buf[:12])
 		default:
 			log.Print("bad tcfsOp: ", tcfsOp)
 		}
@@ -292,12 +319,20 @@ func handleConn(tConn *TcfsConn) {
 }
 
 var (
-	port     = flag.String("port", ":9876", "port to listen to")
-	rootpath = flag.String("dir", "rootdir", "path to share")
+	port         = flag.String("port", ":9876", "port to listen to")
+	rootpath     = flag.String("dir", "rootdir", "path to share")
+	cryptoMethod = flag.String("crypto", "rc4", "encryption method")
+	key          = flag.String("key", "", "password used to encrypt the data")
 )
 
 func main() {
+	var cipher *tcfs.Cipher
 	flag.Parse()
+	if len(*key) > 0 {
+		cipher = tcfs.NewCipher(*cryptoMethod, []byte(*key))
+	} else {
+		cipher = nil
+	}
 	l, e := net.Listen("tcp", *port)
 	if e != nil {
 		log.Fatal(e)
@@ -313,6 +348,7 @@ func main() {
 			conn,
 			make([]byte, 4096*1024),
 			map[uintptr]*os.File{},
+			cipher,
 		}
 		go handleConn(&newConn)
 	}
