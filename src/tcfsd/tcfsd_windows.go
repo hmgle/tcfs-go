@@ -91,10 +91,8 @@ func handleConn(tConn *TcfsConn) {
 		case GETATTR:
 			// FIXME
 			fixpath := rootdir + string(msgbuf)
-			fmt.Println(fixpath)
 			fiInfo, err2 := os.Lstat(fixpath)
 			if err2 != nil {
-				fmt.Println("xxxxxxx1")
 				binary.BigEndian.PutUint32(buf[0:4], 4)
 				var ret int32 = -2
 				binary.BigEndian.PutUint32(buf[4:8], uint32(ret))
@@ -121,7 +119,6 @@ func handleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[36:40], uint32(fiInfo.ModTime().Unix())) // Atime
 			binary.BigEndian.PutUint32(buf[40:44], uint32(fiInfo.ModTime().Unix())) // Mtime
 			binary.BigEndian.PutUint32(buf[44:48], uint32(fiInfo.ModTime().Unix())) // Ctime
-			fmt.Println("22222222")
 			tConn.Write(buf[:48])
 		case READLINK:
 		case GETDIR:
