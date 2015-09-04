@@ -320,7 +320,7 @@ func handleConn(tConn *TcfsConn) {
 
 var (
 	port         = flag.String("port", ":9876", "port to listen to")
-	rootpath     = flag.String("dir", "rootdir", "path to share")
+	rootpath     = flag.String("dir", ".", "path to share")
 	cryptoMethod = flag.String("crypto", "rc4", "encryption method")
 	key          = flag.String("key", "", "password used to encrypt the data")
 )
