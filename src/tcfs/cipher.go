@@ -2,6 +2,7 @@ package tcfs
 
 import (
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rc4"
 	"log"
 )
@@ -17,8 +18,21 @@ var cipherMap = map[string]chiperCreator{
 	"rc4": newRC4Cipher,
 }
 
-func newRC4Cipher(key []byte) (*Cipher, error) {
-	c, err := rc4.NewCipher(key)
+func secretToKey(secret []byte, size int) []byte {
+	// size mod 16 must be 0
+	h := md5.New()
+	buf := make([]byte, size)
+	count := size / md5.Size
+	// repeatly fill the key with the secret
+	for i := 0; i < count; i++ {
+		h.Write(secret)
+		copy(buf[md5.Size*i:md5.Size*(i+1)], h.Sum(nil))
+	}
+	return buf
+}
+
+func newRC4Cipher(secret []byte) (*Cipher, error) {
+	c, err := rc4.NewCipher(secretToKey(secret, 16))
 	if err != nil {
 		return nil, err
 	}
