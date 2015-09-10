@@ -9,7 +9,7 @@ Tcfs-go is the tcfs server writen in Golang.
 - Server:
 
 ```
-go get github/hmgle/tcfs-go/tcfsd
+go get github.com/hmgle/tcfs-go/tcfsd
 tcfsd -dir .
 ```
 
