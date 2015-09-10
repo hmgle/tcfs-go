@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github/hmgle/tcfs-go"
+	"github.com/hmgle/tcfs-go"
 	"io"
 	"io/ioutil"
 	"log"
