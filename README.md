@@ -6,11 +6,14 @@ Tcfs-go is the tcfs server writen in Golang.
 
 ## How to use?
 
-- Server:
+- Server(assume IP address is 192.168.0.100):
 
 ```
 go get github.com/hmgle/tcfs-go/tcfsd
 tcfsd -dir .
+# can use absolute path:
+# tcfsd -dir "/tmp"
+# tcfsd -dir "c:" # Windows
 ```
 
 - Client:
@@ -21,6 +24,16 @@ git clone https://github.com/hmgle/tcfs.git
 cd tcfs
 mkdir mountpoint
 make
-./tcfs --server 127.0.0.1 mountpoint
+# 192.168.0.100 is the server IP address
+./tcfs --server 192.168.0.100 mountpoint
 ls -shal mountpoint
+# access mountpoint
+# ...
+# unmount tcfs
+fusermount -u mountpoint
+# or sudo umount mountpoint
 ```
+
+## Protocol
+
+[TCFS protocol](https://github.com/hmgle/tcfs/blob/master/protocol.adoc)
