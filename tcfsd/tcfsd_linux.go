@@ -48,25 +48,25 @@ func (c *TcfsConn) Close() {
 }
 
 const (
-	GETATTR  = 0x01
-	READLINK = 0x02
-	GETDIR   = 0x03
-	MKNOD    = 0x04
-	MKDIR    = 0x05
-	SYMLINK  = 0x06
-	UNLINK   = 0x07
-	RMDIR    = 0x08
-	RENAME   = 0x09
-	CHMOD    = 0x0A
-	CHOWN    = 0x0B
-	TRUNCATE = 0x0C
-	UTIME    = 0x0D
-	OPEN     = 0x0E
-	READ     = 0x0F
-	WRITE    = 0x10
-	READDIR  = 0x11
-	RELEASE  = 0x12
-	CREATE   = 0x13
+	GETATTR  uint32 = 0x01
+	READLINK uint32 = 0x02
+	GETDIR   uint32 = 0x03
+	MKNOD    uint32 = 0x04
+	MKDIR    uint32 = 0x05
+	SYMLINK  uint32 = 0x06
+	UNLINK   uint32 = 0x07
+	RMDIR    uint32 = 0x08
+	RENAME   uint32 = 0x09
+	CHMOD    uint32 = 0x0A
+	CHOWN    uint32 = 0x0B
+	TRUNCATE uint32 = 0x0C
+	UTIME    uint32 = 0x0D
+	OPEN     uint32 = 0x0E
+	READ     uint32 = 0x0F
+	WRITE    uint32 = 0x10
+	READDIR  uint32 = 0x11
+	RELEASE  uint32 = 0x12
+	CREATE   uint32 = 0x13
 )
 
 func handleConn(tConn *TcfsConn) {
