@@ -20,7 +20,7 @@ tcfsd -dir .
 
 ```
 sudo apt-get install libfuse-dev
-git clone https://github.com/hmgle/tcfs.git
+git clone https://github.com/tcfs/tcfs.git
 cd tcfs
 mkdir mountpoint
 make
@@ -36,4 +36,4 @@ fusermount -u mountpoint
 
 ## Protocol
 
-[TCFS protocol](https://github.com/hmgle/tcfs/blob/master/protocol.adoc)
+[TCFS protocol](https://github.com/tcfs/tcfs/blob/master/protocol.adoc)
