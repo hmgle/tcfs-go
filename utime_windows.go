@@ -1,4 +1,4 @@
-package main
+package tcfs
 
 import (
 	"encoding/binary"
