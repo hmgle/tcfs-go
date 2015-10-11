@@ -23,10 +23,9 @@ func (c *TcfsConn) Read(b []byte) (int, error) {
 	if c.Cipher == nil {
 		return c.Conn.Read(b)
 	}
-	cipherData := make([]byte, len(b))
-	n, err := c.Conn.Read(cipherData)
+	n, err := c.Conn.Read(b)
 	if n > 0 {
-		c.Cipher.Decrypt(b[0:n], cipherData[0:n])
+		c.Cipher.Decrypt(b[0:n], b[0:n])
 	}
 	return n, err
 }
@@ -35,9 +34,8 @@ func (c *TcfsConn) Write(b []byte) (int, error) {
 	if c.Cipher == nil {
 		return c.Conn.Write(b)
 	}
-	cipherData := make([]byte, len(b))
-	c.Cipher.Encrypt(cipherData, b)
-	return c.Conn.Write(cipherData)
+	c.Cipher.Encrypt(b, b)
+	return c.Conn.Write(b)
 }
 
 func (c *TcfsConn) Close() {
