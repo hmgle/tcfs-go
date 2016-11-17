@@ -85,7 +85,7 @@ func HandleConn(tConn *TcfsConn) {
 		msgbuf := buf[4:msglen]
 		switch tcfsOp {
 		case GETATTR:
-			getattr_handle(tConn, msgbuf)
+			getattrHandle(tConn, msgbuf)
 		case READLINK:
 		case GETDIR:
 		case MKNOD:
@@ -163,7 +163,7 @@ func HandleConn(tConn *TcfsConn) {
 			binary.BigEndian.PutUint32(buf[4:8], 0)
 			tConn.Write(buf[:8])
 		case UTIME:
-			utime_handle(tConn, msgbuf)
+			utimeHandle(tConn, msgbuf)
 		case OPEN:
 			flag := binary.BigEndian.Uint32(msgbuf[0:4])
 			fixpath := rootdir + string(msgbuf[4:])

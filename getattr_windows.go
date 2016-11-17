@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func getattr_handle(tConn *TcfsConn, msgbuf []byte) {
+func getattrHandle(tConn *TcfsConn, msgbuf []byte) {
 	// FIXME
 	rootdir := tConn.RootDir
 	buf := tConn.Buf

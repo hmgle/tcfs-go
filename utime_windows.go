@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 )
 
-func utime_handle(tConn *TcfsConn, msgbuf []byte) {
+func utimeHandle(tConn *TcfsConn, msgbuf []byte) {
 	// TODO
 	buf := tConn.Buf
 	binary.BigEndian.PutUint32(buf[0:4], 4)

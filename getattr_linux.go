@@ -5,7 +5,7 @@ import (
 	"syscall"
 )
 
-func getattr_handle(tConn *TcfsConn, msgbuf []byte) {
+func getattrHandle(tConn *TcfsConn, msgbuf []byte) {
 	rootdir := tConn.RootDir
 	buf := tConn.Buf
 	fixpath := rootdir + string(msgbuf)

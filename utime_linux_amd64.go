@@ -6,7 +6,7 @@ import (
 	"syscall"
 )
 
-func utime_handle(tConn *TcfsConn, msgbuf []byte) {
+func utimeHandle(tConn *TcfsConn, msgbuf []byte) {
 	rootdir := tConn.RootDir
 	buf := tConn.Buf
 	atime := binary.BigEndian.Uint64(msgbuf[0:8])
