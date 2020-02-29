@@ -35,11 +35,11 @@ func main() {
 			continue
 		}
 		newConn := tcfs.TcfsConn{
-			*rootpath,
-			conn,
-			make([]byte, 4096*1024),
-			map[uintptr]*os.File{},
-			cipher,
+			RootDir:    *rootpath,
+			Conn:       conn,
+			Buf:        make([]byte, 4096*1024),
+			OpenedFile: map[uintptr]*os.File{},
+			Cipher:     cipher,
 		}
 		go tcfs.HandleConn(&newConn)
 	}

@@ -12,7 +12,10 @@ func utimeHandle(tConn *TcfsConn, msgbuf []byte) {
 	atime := binary.BigEndian.Uint64(msgbuf[0:8])
 	mtime := binary.BigEndian.Uint64(msgbuf[8:16])
 	fixpath := rootdir + string(msgbuf[16:])
-	err := syscall.Utime(fixpath, &syscall.Utimbuf{int64(atime), int64(mtime)})
+	err := syscall.Utime(fixpath, &syscall.Utimbuf{
+		Actime:  int64(atime),
+		Modtime: int64(mtime),
+	})
 	if err != nil {
 		log.Print("Can't create", err)
 		binary.BigEndian.PutUint32(buf[0:4], 4)

@@ -80,6 +80,10 @@ func HandleConn(tConn *TcfsConn) {
 			log.Fatal("msglen = ", msglen)
 		}
 		_, err = io.ReadFull(tConn, buf[:msglen])
+		if err != nil {
+			log.Printf("io.ReadFull err: %v\n", err)
+			break
+		}
 
 		tcfsOp := binary.BigEndian.Uint32(buf[0:4])
 		msgbuf := buf[4:msglen]
